@@ -6,17 +6,18 @@
 fwdBracket: 	.asciiz "["
 bckBracket:	.asciiz "]---"
 nullSym:		.asciiz "---[NULL]"
-menu:		.asciiz "\nPress a key for the following selections\n1)Add node\n2)Print list\n3)Reverse list\n4)List size\n5)Clear list\n6)End program "
-table:		.word default,case1,case2,case3,case4,case5,case6 # array of addresses  
+menu:		.asciiz "\nPress a key for the following selections\n1)Push node\n2)Print list\n3)Reverse list\n4)List size\n5)Clear list\n6)Pop node\n7)End program "
+table:		.word default,case1,case2,case3,case4,case5,case6,case7 # array of addresses  
 null:		.byte '\0' 
-wrongInput:	.asciiz "\nWrong format please enter an integer 1 - 6\n"
+wrongInput:	.asciiz "\nWrong format please enter an integer 1 - 7\n"
 caseNum1:		.asciiz "\nPlease enter an integer to be added to the linked list\n"
-caseNum3:		.asciiz "\nCase 3"
 sizeStr:		.asciiz "\nSize: "
 newLine:		.asciiz "\n"
-listClear:	.asciiz "Linked list is cleared!\n"
-listRev:		.asciiz "Linked list reversed\n"
-caseNum6:		.asciiz "\nProgram Terminated"
+listClear:	.asciiz "\nLinked list is cleared!\n"
+listRev:		.asciiz "\nLinked list reversed\n"
+removeStr:	.asciiz "Node removed\n"
+endStr:		.asciiz "\nProgram Terminated"
+empty:		.asciiz "\nLinked list is empty\n"
 
 .text #source code
 	# Prints string passes label address %x and perserves arg <reg>
@@ -88,16 +89,21 @@ main_Loop:
 		move	$a1,$s2 
 		move	$a2,$s1
 		beq	$a1,$a2,noCall #if($a1 == null) goto noCall
+		printf(newLine)
 		jal	printList
+		printf(nullSym)
+		printf(newLine)
 		# restore <reg> and free stack
 		lw	$a0,0($sp)
 		lw	$a1,4($sp)
 		lw	$a2,8($sp)
 		addi	$sp,$sp,12 #deallocate 
 		noCall:
-		printf(nullSym) 
+		printf(empty)
 		j breakCase
+		
 	case3: # Reverse linked list
+		beq	$a1,$s1,skip_Rev
 		# a1 = headptr, $a2 = null 
 		addi	$sp,$sp,-8
 		sw	$a1,0($sp)
@@ -108,6 +114,9 @@ main_Loop:
 		lw	$a1,0($sp)
 		lw	$a2,4($sp)
 		addi	$sp,$sp,8 
+		j breakCase
+		skip_Rev:
+		printf(empty)
 		j breakCase
 	case4: # Get list size
 	
@@ -127,12 +136,35 @@ main_Loop:
 	lw	$a1,4($sp)
 	lw	$a2,8($sp)
 		j breakCase
-	case5: # Clear list, MAR doesn't support free() so reassign headptr = null 
+		
+	case5: # Remove node, MAR doesn't support free() so reassign headptr 
+	beq	$s2,$s1,skip_Assi
 	move	$s2,$s1 #headptr = null
 	printf(listClear)
+	skip_Assi:
+	printf(empty)
 		j breakCase
-	case6: # End program
-	printf(caseNum6)
+	case6: # Remove node, MAR doesn't support free() so reassign headptr 
+	move	$a0,$s2
+	beq	$a0,$s1,skip_remov
+	printf(removeStr)
+	addi	$sp,$sp,-8
+	sw	$a0,0($sp)
+	sw	$a1,4($sp)
+	jal	removeNode
+	move	$s2,$a1 # update head
+	move	$a0,$v0
+	li	$v0,1 
+	syscall 
+	addi	$sp,$sp,8
+	lw	$a0,0($sp)
+	lw	$a1,4($sp)
+		j breakCase
+	skip_remov: 
+	printf(empty)
+		j breakCase
+	case7: # Clear list, MAR doesn't support free() so reassign headptr 
+	printf(endStr)
 	li	$s0,1 
 	move	$s2,$s1 # set headptr = null 
 		j breakCase
@@ -153,7 +185,7 @@ syscall
  .globl getAddress
  getAddress: 
  ble	$a0,$zero,not_Valid # if ($a0 =< $zero) goto Not_Valid
- bgt	$a0,6,not_Valid #if($a0 > 5) goto Not_Valid
+ bgt	$a0,7,not_Valid #if($a0 > 7) goto Not_Valid
  sll	$t0,$a0,2 # index multiple of sizeof(address)
  add	$t1,$t0,$a1 # Array + index 
  lw	$v0,0($t1) # result = (Array + index)
@@ -261,3 +293,11 @@ reverse:
 	bne	$a1,$a2,loop_Rec #if (head != null) goto loop_Rec
 	move	$v0,$t1 # return new head address 
 	jr	$ra # return to calling function
+
+# Remove first node return its value 
+# a1 = headptr
+.globl removeNode
+removeNode: 
+	lw	$v0,0($a1) # get data to return 
+	lw	$a1,4($a1) # head = head->next
+	jr	$ra
